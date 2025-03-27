@@ -4,9 +4,11 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 import pytorch_lightning as pl
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
+from torch_geometric.data import Data
 
 
 class Exponential(nn.Module):
@@ -317,3 +319,153 @@ class SwagMixin:
         model.weights_std = data['weights_std']
         
         return model
+    
+    
+# DEEP EVIDENTIAL REGRESSION
+
+
+class EvidentialRegressionLoss(nn.Module):
+    
+    def __init__(self, 
+                 reg_factor: float = 1e-6,
+                 reduction: str = 'mean'
+                 ):
+        super().__init__()
+        self.reg_factor = reg_factor
+        self.reduction = reduction
+        
+    def forward(self, targets, mu, v, alpha, beta):
+        
+        two_b_lambda = 2 * beta * (1 + v)
+    
+        # mean squared error component
+        mse = torch.pow(targets - mu, 2)
+        
+        # negative log likelihood component
+        nll = 0.5 * torch.log(torch.pi / v) \
+            - alpha * torch.log(two_b_lambda) \
+            + (alpha + 0.5) * torch.log(v * mse + two_b_lambda) \
+            + torch.lgamma(alpha) \
+            - torch.lgamma(alpha + 0.5)
+            
+        # regularization term - prevents alpha from collapsing
+        reg = self.reg_factor * torch.abs(targets - mu) * (2 * v + alpha)
+        
+        loss = nll + reg
+        if self.reduction == 'mean':
+            return torch.mean(loss)
+        else:
+            return loss
+
+
+class EvidentialMixin:
+    """
+    
+    The constructor of this mixin has to be called as the last part of the child classes' constructor to 
+    ensure that the evidential network is correctly initialized.
+    """
+    
+    def __init__(self,
+                 use_evidential_regression: bool = True,
+                 evidential_reg_factor: float = 1e-3,
+                 **kwargs,
+                 ):
+        
+        self.use_evidential_regression = use_evidential_regression
+        
+        if self.use_evidential_regression:
+            
+            print('Using evidential regression...')
+            
+            self.prediction_layers = torch.nn.ModuleList()
+            prev_units = self.embedding_dim
+            for c, units in enumerate(self.predictor_units, start=1):
+                
+                if c == len(self.predictor_units):
+                    break
+                
+                lay = nn.Sequential(
+                    nn.Linear(prev_units, units),
+                    nn.ReLU(),
+                )
+                self.prediction_layers.append(lay)
+                prev_units = units
+                
+            self.target_dim = self.predictor_units[-1]
+        
+            # ~ final layers
+            # For each actual output value, the evidential regression network has to predict 4 values:
+            # mu, v, alpha and beta.
+            self.lay_mu = nn.Linear(prev_units, self.target_dim)
+            self.lay_v = nn.Linear(prev_units, self.target_dim)
+            self.lay_alpha = nn.Linear(prev_units, self.target_dim)
+            self.lay_beta = nn.Linear(prev_units, self.target_dim)
+
+            # A small epsilon value needed in some places for numerical stability
+            self.eps = 1e-5
+            
+            # The special loss criterion that will have to be used for the training...
+            self.criterion = EvidentialRegressionLoss(
+                reg_factor=evidential_reg_factor,
+            )
+    
+            # At the end we also need to replace the current implementation of the "forward" and 
+            # "training_step" methods with the ones that are specific to the evidential regression.
+            setattr(self, 'forward', self.forward_evidential)
+            setattr(self, 'training_step', self.training_step_evidential)
+    
+    def forward_evidential(self, data):
+        
+        node_input, edge_input, edge_indices = data.x, data.edge_attr, data.edge_index
+        
+        node_embedding = self.lay_embedd(node_input)
+        for lay in self.encoder_layers:
+            node_embedding = lay(node_embedding, edge_indices, edge_input)
+            
+        graph_embedding = self.lay_pool(node_embedding, data.batch)
+        
+        output = graph_embedding
+        for lay in self.prediction_layers:
+            output = lay(output)
+            
+        mu = self.lay_mu(output)
+        v = F.softplus(self.lay_v(output)) + self.eps
+        alpha = F.softplus(self.lay_alpha(output)) + 1.01
+        beta = F.softplus(self.lay_beta(output)) + self.eps
+        
+        predictive_mean = mu
+        predictive_variance = beta / (v * (alpha - 1))
+        predictive_variance = (beta / (alpha - 1)) + (beta / (v * (alpha - 1)))
+        
+        return {
+            # generic return values
+            'graph_output': predictive_mean,
+            'graph_embedding': graph_embedding,
+            'graph_variance': predictive_variance,
+            # return values specific to the evidential regression
+            'graph_mu': mu,
+            'graph_v': v,
+            'graph_alpha': alpha,
+            'graph_beta': beta,
+        }
+
+    def training_step_evidential(self, data: Data) -> torch.Tensor:
+        
+        loss = 0.0
+        batch_size = np.max(data.batch.detach().cpu().numpy()) + 1
+        
+        info: dict = self.forward(data)
+    
+        out_true = data.y.view(info['graph_output'].shape)
+        
+        loss += self.criterion(
+            targets=out_true,
+            mu=info['graph_mu'],
+            v=info['graph_v'],
+            alpha=info['graph_alpha'],
+            beta=info['graph_beta'],
+        )
+        self.log('loss', loss, prog_bar=True, on_epoch=True, batch_size=batch_size)
+        
+        return loss
+        

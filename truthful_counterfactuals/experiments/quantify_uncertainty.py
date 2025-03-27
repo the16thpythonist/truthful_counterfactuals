@@ -101,7 +101,7 @@ ENCODER_UNITS = [64, 64, 64]
 # :param PREDICTOR_UNITS:
 #       The number of units to be used in the predictor part of the model. This essentially determines
 #       the number of neurons in each layer of the final prediction subnetwork.
-PREDICTOR_UNITS = [32, 16, 1]
+PREDICTOR_UNITS = [64, 32, 1]
 
 # == TRAINING PARAMETERS == 
 
@@ -280,6 +280,9 @@ def quantify_uncertainty(e: Experiment,
     """
     graphs = [index_data_map[index]['metadata']['graph'] for index in indices]
     results: list[dict] = uncertainty_estimator.evaluate_graphs(graphs)
+
+    # for result in results:
+    #     result['uncertainty'] = min(100., result['uncertainty'])
 
     return results
 
@@ -467,8 +470,10 @@ def evaluate_uncertainty(e: Experiment,
     ax.set_ylabel('Error')
     e.commit_fig('uncertainty_error.pdf', fig)
     
+    quantile_val = df['uncertainty'].quantile(0.99)
+    df_filtered = df[df['uncertainty'] <= quantile_val]
     g = sns.JointGrid(
-        data=df,
+        data=df_filtered,
         x='uncertainty',
         y='error',
     )

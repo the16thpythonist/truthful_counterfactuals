@@ -11,6 +11,7 @@ from sklearn.neighbors import NearestNeighbors
 
 from truthful_counterfactuals.mixins import MeanVarianceMixin
 from truthful_counterfactuals.mixins import SwagMixin
+from truthful_counterfactuals.mixins import EvidentialMixin
 from truthful_counterfactuals.models import AbstractGraphModel
 from truthful_counterfactuals.models import EnsembleModel
 from truthful_counterfactuals.data import loader_from_graphs
@@ -722,6 +723,29 @@ class TrustScoreUncertainty(AbstractUncertainty):
             results.append({
                 'prediction': prediction,
                 'uncertainty': uncertainty,
+            })
+            
+        return results
+    
+
+class EvidentialUncertainty(AbstractUncertainty):
+    
+    def __init__(self,
+                 model: EvidentialMixin,
+                 **kwargs
+                 ):
+        AbstractUncertainty.__init__(self, **kwargs)
+        self.model = model
+        
+    def evaluate_graphs(self, graphs, calibrated = True):
+        
+        results: List[dict] = []
+        infos = self.model.forward_graphs(graphs)
+        
+        for graph, info in zip(graphs, infos):
+            results.append({
+                'prediction': float(info['graph_output'][0]),
+                'uncertainty': float(info['graph_variance'][0]),
             })
             
         return results

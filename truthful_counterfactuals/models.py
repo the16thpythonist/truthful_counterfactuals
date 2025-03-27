@@ -21,6 +21,7 @@ from truthful_counterfactuals.utils import get_version
 from truthful_counterfactuals.mixins import InitializationMixin
 from truthful_counterfactuals.mixins import MeanVarianceMixin
 from truthful_counterfactuals.mixins import SwagMixin
+from truthful_counterfactuals.mixins import EvidentialMixin
 
 ModelType = TypeVar('ModelType')
 
@@ -119,22 +120,24 @@ class AbstractGraphModel(pl.LightningModule):
     
     def forward_graphs(self, graphs: list[dict], batch_size: int = 128) -> list[dict]:
         
-        loader = loader_from_graphs(graphs, batch_size=batch_size)
-        
-        # This will be the data structure that holds all the results of the inference process. Each element 
-        # in this list will be a dictionary holding all the information for one graph in the given list of 
-        # graphs - having the same order as that list.
-        results: list[dict] = []
-        for data in loader:
-            # This is the actual size of the CURRENT batch. Usually this will be the same as the given batch 
-            # size, but if the number of graphs is not exactly divisible by that number, it CAN be different!
-            _batch_size = np.max(data.batch.detach().numpy()) + 1
+        with torch.no_grad():
             
-            # This line ultimately invokes the "forward" method of the class which returns a dictionary structure 
-            # that contains all the various bits of information about the prediction process.
-            info: dict = self.forward(data)
+            loader = loader_from_graphs(graphs, batch_size=batch_size)
+            
+            # This will be the data structure that holds all the results of the inference process. Each element 
+            # in this list will be a dictionary holding all the information for one graph in the given list of 
+            # graphs - having the same order as that list.
+            results: list[dict] = []
+            for data in loader:
+                # This is the actual size of the CURRENT batch. Usually this will be the same as the given batch 
+                # size, but if the number of graphs is not exactly divisible by that number, it CAN be different!
+                _batch_size = np.max(data.batch.detach().numpy()) + 1
                 
-            results += self.split_infos(info, data)
+                # This line ultimately invokes the "forward" method of the class which returns a dictionary structure 
+                # that contains all the various bits of information about the prediction process.
+                info: dict = self.forward(data)
+                    
+                results += self.split_infos(info, data)
                 
         return results
     
@@ -389,7 +392,7 @@ class RepulsiveEnsembleModel(EnsembleModel):
         return loss
 
 
-class GINModel(SwagMixin, MeanVarianceMixin, InitializationMixin, AbstractGraphModel):
+class GINModel(EvidentialMixin, SwagMixin, MeanVarianceMixin, InitializationMixin, AbstractGraphModel):
     
     def __init__(self,
                  node_dim: int,
@@ -464,6 +467,8 @@ class GINModel(SwagMixin, MeanVarianceMixin, InitializationMixin, AbstractGraphM
         
         MeanVarianceMixin.__init__(self, **kwargs)
         
+        EvidentialMixin.__init__(self, **kwargs)
+        
         InitializationMixin.__init__(self, **kwargs)
         self.initialize_weights()
     
@@ -490,7 +495,7 @@ class GINModel(SwagMixin, MeanVarianceMixin, InitializationMixin, AbstractGraphM
         self.encoder_layers = model.encoder_layers
         
 
-class GATModel(SwagMixin, MeanVarianceMixin, InitializationMixin, AbstractGraphModel):
+class GATModel(EvidentialMixin, SwagMixin, MeanVarianceMixin, InitializationMixin, AbstractGraphModel):
     
     def __init__(self,
                  node_dim: int,
@@ -563,7 +568,11 @@ class GATModel(SwagMixin, MeanVarianceMixin, InitializationMixin, AbstractGraphM
         # ~ implementing mixins
         
         MeanVarianceMixin.__init__(self, **kwargs)
+        
         SwagMixin.__init__(self, **kwargs)
+        
+        EvidentialMixin.__init__(self, **kwargs)
+        
         InitializationMixin.__init__(self, **kwargs)
         self.initialize_weights()
             
