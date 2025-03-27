@@ -1,0 +1,61 @@
+\begin{tabular}{ ccccccc }
+% -- table header --
+\toprule
+Model &
+Method &
+MAE &
+$R^2$ &
+$\rho$ &
+$\text{UER-AUC}_{\text{mean}}$ &
+$\text{UER-AUC}_{\text{max}}$ \\
+
+\midrule
+% -- table content --
+% row 1
+GATv2 &
+Random &
+$0.13 {\color{gray} \pm \mathsmaller{ 0.05 } }$ &
+$1.00 {\color{gray} \pm \mathsmaller{ 0.00 } }$ &
+$0.01 {\color{gray} \pm \mathsmaller{ 0.03 } }$ &
+$0.01 {\color{gray} \pm \mathsmaller{ 0.04 } }$ &
+$0.10 {\color{gray} \pm \mathsmaller{ 0.10 } }$ 
+\\
+% row 2
+GATv2 &
+ENS(3) &
+$0.09 {\color{gray} \pm \mathsmaller{ 0.01 } }$ &
+$1.00 {\color{gray} \pm \mathsmaller{ 0.00 } }$ &
+$0.46 {\color{gray} \pm \mathsmaller{ 0.05 } }$ &
+$0.21 {\color{gray} \pm \mathsmaller{ 0.03 } }$ &
+$0.51 {\color{gray} \pm \mathsmaller{ 0.21 } }$ 
+\\
+% row 3
+GATv2 &
+MVE &
+$0.36 {\color{gray} \pm \mathsmaller{ 0.30 } }$ &
+$0.94 {\color{gray} \pm \mathsmaller{ 0.07 } }$ &
+$0.67 {\color{gray} \pm \mathsmaller{ 0.12 } }$ &
+$0.30 {\color{gray} \pm \mathsmaller{ 0.07 } }$ &
+$0.74 {\color{gray} \pm \mathsmaller{ 0.17 } }$ 
+\\
+% row 4
+GATv2 &
+SWAG &
+$0.11 {\color{gray} \pm \mathsmaller{ 0.01 } }$ &
+$1.00 {\color{gray} \pm \mathsmaller{ 0.00 } }$ &
+$0.37 {\color{gray} \pm \mathsmaller{ 0.13 } }$ &
+$0.18 {\color{gray} \pm \mathsmaller{ 0.04 } }$ &
+$0.43 {\color{gray} \pm \mathsmaller{ 0.18 } }$ 
+\\
+% row 5
+GATv2 &
+ENS(3)+MVE &
+$0.30 {\color{gray} \pm \mathsmaller{ 0.20 } }$ &
+$0.96 {\color{gray} \pm \mathsmaller{ 0.04 } }$ &
+$0.69 {\color{gray} \pm \mathsmaller{ 0.04 } }$ &
+$0.30 {\color{gray} \pm \mathsmaller{ 0.04 } }$ &
+$0.77 {\color{gray} \pm \mathsmaller{ 0.04 } }$ 
+\\
+
+\bottomrule
+\end{tabular}

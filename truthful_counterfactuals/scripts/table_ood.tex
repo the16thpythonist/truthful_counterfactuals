@@ -1,0 +1,87 @@
+\begin{tabular}{ cccccc }
+% -- table header --
+\toprule
+OOD &
+Method &
+$R^2$ &
+$\rho$ &
+$\text{UER-AUC}_{\text{mean}}$ &
+$\text{UER-AUC}_{\text{max}}$ \\
+
+\midrule
+% -- table content --
+% row 1
+iid &
+MVE &
+$0.94 {\color{gray} \pm \mathsmaller{ 0.07 } }$ &
+$0.67 {\color{gray} \pm \mathsmaller{ 0.12 } }$ &
+$0.30 {\color{gray} \pm \mathsmaller{ 0.07 } }$ &
+$0.74 {\color{gray} \pm \mathsmaller{ 0.17 } }$ 
+\\
+% row 2
+iid &
+ENS(3) &
+$1.00 {\color{gray} \pm \mathsmaller{ 0.00 } }$ &
+$0.46 {\color{gray} \pm \mathsmaller{ 0.05 } }$ &
+$0.21 {\color{gray} \pm \mathsmaller{ 0.03 } }$ &
+$0.51 {\color{gray} \pm \mathsmaller{ 0.21 } }$ 
+\\
+% row 3
+iid &
+ENS(3)+MVE &
+$0.96 {\color{gray} \pm \mathsmaller{ 0.04 } }$ &
+$0.69 {\color{gray} \pm \mathsmaller{ 0.04 } }$ &
+$0.30 {\color{gray} \pm \mathsmaller{ 0.04 } }$ &
+$0.77 {\color{gray} \pm \mathsmaller{ 0.04 } }$ 
+\\
+% row 4
+struct &
+MVE &
+$0.98 {\color{gray} \pm \mathsmaller{ 0.01 } }$ &
+$0.57 {\color{gray} \pm \mathsmaller{ 0.12 } }$ &
+$0.27 {\color{gray} \pm \mathsmaller{ 0.07 } }$ &
+$0.48 {\color{gray} \pm \mathsmaller{ 0.09 } }$ 
+\\
+% row 5
+struct &
+ENS(3) &
+$1.00 {\color{gray} \pm \mathsmaller{ 0.00 } }$ &
+$0.44 {\color{gray} \pm \mathsmaller{ 0.08 } }$ &
+$0.21 {\color{gray} \pm \mathsmaller{ 0.03 } }$ &
+$0.69 {\color{gray} \pm \mathsmaller{ 0.03 } }$ 
+\\
+% row 6
+struct &
+ENS(3)+MVE &
+$0.98 {\color{gray} \pm \mathsmaller{ 0.01 } }$ &
+$0.60 {\color{gray} \pm \mathsmaller{ 0.19 } }$ &
+$0.29 {\color{gray} \pm \mathsmaller{ 0.10 } }$ &
+$0.71 {\color{gray} \pm \mathsmaller{ 0.06 } }$ 
+\\
+% row 7
+value &
+MVE &
+$0.97 {\color{gray} \pm \mathsmaller{ 0.03 } }$ &
+$0.55 {\color{gray} \pm \mathsmaller{ 0.15 } }$ &
+$0.36 {\color{gray} \pm \mathsmaller{ 0.17 } }$ &
+$0.65 {\color{gray} \pm \mathsmaller{ 0.14 } }$ 
+\\
+% row 8
+value &
+ENS(3) &
+$0.98 {\color{gray} \pm \mathsmaller{ 0.01 } }$ &
+$0.58 {\color{gray} \pm \mathsmaller{ 0.08 } }$ &
+$0.60 {\color{gray} \pm \mathsmaller{ 0.15 } }$ &
+$0.76 {\color{gray} \pm \mathsmaller{ 0.11 } }$ 
+\\
+% row 9
+value &
+ENS(3)+MVE &
+$0.98 {\color{gray} \pm \mathsmaller{ 0.00 } }$ &
+$0.61 {\color{gray} \pm \mathsmaller{ 0.04 } }$ &
+$0.53 {\color{gray} \pm \mathsmaller{ 0.08 } }$ &
+$0.76 {\color{gray} \pm \mathsmaller{ 0.07 } }$ 
+\\
+
+\bottomrule
+\end{tabular}
