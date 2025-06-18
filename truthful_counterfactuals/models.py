@@ -495,7 +495,32 @@ class GINModel(EvidentialMixin, SwagMixin, MeanVarianceMixin, InitializationMixi
         self.encoder_layers = model.encoder_layers
         
 
-class GATModel(EvidentialMixin, SwagMixin, MeanVarianceMixin, InitializationMixin, AbstractGraphModel):
+class GATModel(EvidentialMixin, 
+               SwagMixin, 
+               MeanVarianceMixin, 
+               InitializationMixin, 
+               AbstractGraphModel
+               ):
+    """
+    Implements a simple GNN architecture based on the GATv2 layer type. 
+    
+    The model consists of an encoder subnetwork using the GATv2 layers to update the node embeddings
+    and a predictor subnetwork that takes the final graph embedding and produces the final output.
+    The node embeddings are aggregated into a single graph embedding using a simple sum aggregation.
+    
+    The model also implements several mixins to provide additional functionality:
+    - SwagMixin: Implements the possibility to use the method of "Stochastic Weight Averaging Gaussian" 
+      for uncertainty estimation
+    - MeanVarianceMixin: Implements the possibility to use the method of "Mean Variance Estimation" for 
+      uncertainty estimation. With this method the model is augmented to not only predict the mean of the 
+      target variable but also the variance at the same time.
+    - InitializationMixin: Implements the possibility to use custom initialization methods for the model's
+      weights.
+    - EvidentialMixin: Implements the possibility to use the method of "Evidential Deep Learning" for
+      uncerainty estimation. With this method, the model is augmented to not only predict the mean of the
+      target variable but also the parameters of an inverse gamma distribution which can be used to
+      estimate aleatoric and epistemic uncertainty.
+    """
     
     def __init__(self,
                  node_dim: int,
@@ -524,12 +549,18 @@ class GATModel(EvidentialMixin, SwagMixin, MeanVarianceMixin, InitializationMixi
             'num_heads': num_heads,
         })
         
+        # ~ embedding
+        # At the beginning we use a single linear layer to create an embedding with a 
+        # desired dimensionality out of the input node features.
         prev_features = self.encoder_units[0]
         self.lay_embedd = nn.Linear(
             in_features=node_dim,
             out_features=prev_features,
         )
         
+        # ~ graph encoder
+        # The encoder subnetwork consists of a number of GATv2 layers that update the node embeddings.
+        # The number of units in each layer is defined by the "encoder_units" attribute.
         self.lay_act = nn.LeakyReLU()
         self.encoder_layers = nn.ModuleList([])
         for units in self.encoder_units:
@@ -551,6 +582,9 @@ class GATModel(EvidentialMixin, SwagMixin, MeanVarianceMixin, InitializationMixi
         # The pooling layer can be used to aggregate all of the node embeddings into a single graph embedding.
         self.lay_pool = SumAggregation()
             
+        # ~ predictor
+        # The predictor subnetwork takes the final graph embedding and produces the final output.
+        # The number of units in each layer is defined by the "predictor_units" attribute.
         self.predictor_layers = nn.ModuleList([])
         for i, units in enumerate(self.predictor_units):
             
@@ -577,6 +611,17 @@ class GATModel(EvidentialMixin, SwagMixin, MeanVarianceMixin, InitializationMixi
         self.initialize_weights()
             
     def forward(self, data: Data):
+        """
+        Given the torch geometric ``data`` object that represents the input graph, this method will perform 
+        a model forward pass and then return a dictionary with the results of the forward pass. This dictionary 
+        will contain at the very least the two entries:
+        - graph_output: The final output value of the network which estimates the target property
+        - graph_embedding: The final graph embedding vector
+        
+        :param data: torch geometric data object
+        
+        :returns: dict
+        """
         node_input, edge_input, edge_indices = data.x, data.edge_attr, data.edge_index
         
         node_embedding = self.lay_embedd(node_input)
@@ -584,6 +629,116 @@ class GATModel(EvidentialMixin, SwagMixin, MeanVarianceMixin, InitializationMixi
             node_embedding = lay(node_embedding, edge_indices, edge_input)
             node_embedding = self.lay_act(node_embedding)
             
+        graph_embedding = self.lay_pool(node_embedding, data.batch)
+        
+        output = graph_embedding
+        for lay in self.predictor_layers:
+            output = lay(output)
+        
+        return {
+            'graph_output': output,
+            'graph_embedding': graph_embedding,
+        }
+
+class GCNModel(EvidentialMixin, 
+               SwagMixin, 
+               MeanVarianceMixin, 
+               InitializationMixin, 
+               AbstractGraphModel):
+    """
+    Implements a simple GNN architecture based on the GCN layer type.
+
+    The model consists of an encoder subnetwork using the GCN layers to update the node embeddings
+    and a predictor subnetwork that takes the final graph embedding and produces the final output.
+    The node embeddings are aggregated into a single graph embedding using a simple sum aggregation.
+
+    The model also implements several mixins to provide additional functionality:
+    - SwagMixin: Implements the possibility to use the method of "Stochastic Weight Averaging Gaussian" 
+      for uncertainty estimation.
+    - MeanVarianceMixin: Implements the possibility to use the method of "Mean Variance Estimation" for 
+      uncertainty estimation.
+    - InitializationMixin: Implements the possibility to use custom initialization methods for the model's
+      weights.
+    - EvidentialMixin: Implements the possibility to use "Evidential Deep Learning" for uncertainty estimation.
+    """
+    def __init__(self,
+                 node_dim: int,
+                 edge_dim: int,
+                 encoder_units: list[int],
+                 predictor_units: list[int],
+                 hidden_units: int = 128,
+                 **kwargs):
+        AbstractGraphModel.__init__(self)
+        self.node_dim = node_dim
+        self.edge_dim = edge_dim
+        self.encoder_units = encoder_units
+        self.predictor_units = predictor_units
+        self.hidden_units = hidden_units
+
+        self.hparams.update({
+            'node_dim': node_dim,
+            'edge_dim': edge_dim,
+            'encoder_units': encoder_units,
+            'predictor_units': predictor_units,
+            'hidden_units': hidden_units,
+        })
+
+        # Embedding layer to transform input node features
+        prev_features = self.encoder_units[0]
+        self.lay_embedd = nn.Linear(
+            in_features=node_dim,
+            out_features=prev_features,
+        )
+
+        # Encoder: Stack of GCNConv layers with activation after each layer
+        self.encoder_layers = nn.ModuleList([])
+        self.lay_act = nn.LeakyReLU()
+        for units in self.encoder_units:
+            lay = GCNConv(
+                in_channels=prev_features, 
+                out_channels=units,
+                improved=True,
+                add_self_loops=True,
+            )
+            prev_features = units
+            self.encoder_layers.append(lay)
+
+        # This is the dimension of the graph embedding vector which is the result of the final layer of the 
+        # encoder subnetwork. We need to define this attribute as a condition for some of the Mixin's
+        self.embedding_dim = prev_features
+        
+        # The pooling layer can be used to aggregate all of the node embeddings into a single graph embedding.
+        self.lay_pool = SumAggregation()
+
+        # Predictor network
+        self.predictor_layers = nn.ModuleList([])
+        for c, units in enumerate(self.predictor_units, start=1):
+            if c == len(self.predictor_units):
+                lay = nn.Linear(prev_features, units)
+            else:
+                lay = nn.Sequential(
+                    nn.Linear(prev_features, units),
+                    nn.LeakyReLU(),
+                )
+            prev_features = units
+            self.predictor_layers.append(lay)
+
+        # Implementing mixins
+        MeanVarianceMixin.__init__(self, **kwargs)
+        SwagMixin.__init__(self, **kwargs)
+        EvidentialMixin.__init__(self, **kwargs)
+        InitializationMixin.__init__(self, **kwargs)
+        self.initialize_weights()
+
+    def forward(self, data: Data):
+        node_input, edge_input, edge_indices = data.x, data.edge_attr, data.edge_index
+        
+        node_embedding = self.lay_embedd(node_input)
+        
+        for lay in self.encoder_layers:
+            node_embedding = lay(node_embedding, edge_indices)
+            node_embedding = self.lay_act(node_embedding)
+        
         graph_embedding = self.lay_pool(node_embedding, data.batch)
         
         output = graph_embedding

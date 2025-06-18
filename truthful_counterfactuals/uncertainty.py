@@ -454,6 +454,8 @@ class EnsembleMveUncertainty(AbstractUncertainty):
             mve_uncertainty = np.mean(variances)
             ens_uncertainty = np.std(predictions)
             
+            uncertainty = mve_uncertainty + ens_uncertainty
+            
             if self.calibration_models and calibrated:
                 ens_uncertainty = self.calibration_models['ens'].transform([ens_uncertainty])[0]
                 variances = [
@@ -466,12 +468,13 @@ class EnsembleMveUncertainty(AbstractUncertainty):
             # the sum - in the end it doesn't really matter but using the average here doesn't violate the 
             # calibration scale...
             #print(self.aggregation)
-            if self.aggregation == 'mean':
-                uncertainty = 0.5 * (mve_uncertainty + ens_uncertainty)
-            elif self.aggregation == 'min':
-                uncertainty = min(mve_uncertainty, ens_uncertainty)
-            elif self.aggregation == 'max':
-                uncertainty = max(mve_uncertainty, ens_uncertainty)
+            
+            # if self.aggregation == 'mean':
+            #     uncertainty = 0.5 * (mve_uncertainty + ens_uncertainty)
+            # elif self.aggregation == 'min':
+            #     uncertainty = min(mve_uncertainty, ens_uncertainty)
+            # elif self.aggregation == 'max':
+            #     uncertainty = max(mve_uncertainty, ens_uncertainty)
             
             results.append({
                 'prediction':       np.mean(predictions),
@@ -743,9 +746,15 @@ class EvidentialUncertainty(AbstractUncertainty):
         infos = self.model.forward_graphs(graphs)
         
         for graph, info in zip(graphs, infos):
+            
+            uncertainty = float(info['graph_variance'][0])
+            # optionally, we apply the internal calibration mapping to the raw uncertainty value
+            if calibrated and 'main' in self.calibration_models:
+                uncertainty = self.calibration_models['main'].transform([uncertainty])[0]
+            
             results.append({
                 'prediction': float(info['graph_output'][0]),
-                'uncertainty': float(info['graph_variance'][0]),
+                'uncertainty': uncertainty,
             })
             
         return results

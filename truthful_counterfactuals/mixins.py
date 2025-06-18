@@ -327,7 +327,7 @@ class SwagMixin:
 class EvidentialRegressionLoss(nn.Module):
     
     def __init__(self, 
-                 reg_factor: float = 1e-6,
+                 reg_factor: float = 1e-4,
                  reduction: str = 'mean'
                  ):
         super().__init__()
@@ -366,8 +366,8 @@ class EvidentialMixin:
     """
     
     def __init__(self,
-                 use_evidential_regression: bool = True,
-                 evidential_reg_factor: float = 1e-3,
+                 use_evidential_regression: bool = False,
+                 evidential_reg_factor: float = 1e-2,
                  **kwargs,
                  ):
         
@@ -402,7 +402,7 @@ class EvidentialMixin:
             self.lay_beta = nn.Linear(prev_units, self.target_dim)
 
             # A small epsilon value needed in some places for numerical stability
-            self.eps = 1e-5
+            self.eps = 1e-6
             
             # The special loss criterion that will have to be used for the training...
             self.criterion = EvidentialRegressionLoss(
@@ -434,8 +434,7 @@ class EvidentialMixin:
         beta = F.softplus(self.lay_beta(output)) + self.eps
         
         predictive_mean = mu
-        predictive_variance = beta / (v * (alpha - 1))
-        predictive_variance = (beta / (alpha - 1)) + (beta / (v * (alpha - 1)))
+        predictive_variance = ((beta * (1 + v)) / (v * (alpha - 1)))
         
         return {
             # generic return values
