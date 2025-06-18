@@ -1,5 +1,6 @@
 .identity.json
 venv/*
+.venv/*
 experiments/**/assets/*
 truthful_counterfactuals/experiments/assets/*
 truthful_counterfactuals/experiments/results/*
@@ -11,3 +12,8 @@ experiments/**/results/*
 .vscode/*
 .cache/*
 *.pyc
+
+**/tests/artifacts/*
+slurm*
+**/.aslurm/*
+_*
