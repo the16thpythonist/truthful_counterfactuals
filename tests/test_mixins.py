@@ -13,9 +13,9 @@ from truthful_counterfactuals.testing import get_mock_graphs
 
 class TestSwagMixin:
     
-    def test_record_weights_basically_works(self):
+    def test_record_snapshot_basically_works(self):
         """
-        The ``record_weights`` method should essentially store a snapshot of the model's weights in the 
+        The ``record_snapshot`` method should essentially store a snapshot of the model's weights in the 
         model's internal self.snapshot_list attribute and each of the values in those lists should be 
         themselves torch.nn.Parameter objects.
         """
@@ -25,10 +25,10 @@ class TestSwagMixin:
         model = MockModel(node_dim=node_dim, edge_dim=edge_dim, out_dim=1)
         assert len(model.snapshot_list) == 0
         
-        model.record_weights()
+        model.record_snapshot()
         assert len(model.snapshot_list) == 1
         
-        model.record_weights()
+        model.record_snapshot()
         assert len(model.snapshot_list) == 2
         
         for param_list in model.snapshot_list:
