@@ -8,7 +8,7 @@ from torch_geometric.data import Data
 from pycomex.functional.experiment import Experiment
 from pycomex.utils import folder_path, file_namespace
 
-from truthful_counterfactuals.models import AbstractGraphModel, GINModel, GATModel
+from truthful_counterfactuals.models import AbstractGraphModel, GINModel, GATModel, GCNModel
 from truthful_counterfactuals.data import data_list_from_graphs
 from truthful_counterfactuals.uncertainty import AbstractUncertainty
 from truthful_counterfactuals.uncertainty import MeanVarianceUncertainty
@@ -19,7 +19,12 @@ VISUAL_GRAPH_DATASET: str = os.path.join(EXPERIMENTS_PATH, 'assets', 'logp')
 
 EPOCHS: int = 50
 CALIBRATE_UNCERTAINTY: bool = True
-TEST_INDICES_PATH: str = os.path.join(EXPERIMENTS_PATH, 'assets', 'logp_ood_struct.json')
+TEST_INDICES_PATH: str = os.path.join(EXPERIMENTS_PATH, 'assets', 'logp_ood_value.json')
+
+# :param MODEL_TYPE:
+#       The type of the model to be used for the experiment. This can be either 'GIN' or 'GAT'.
+#       The model type determines the architecture of the model that is used for the experiment.
+MODEL_TYPE: str = 'gat'
 
 # == MVE PARAMETERS ==
 
@@ -93,6 +98,12 @@ def train_model__gat(e: Experiment,
                      test_indices: List[int],
                      **kwargs,
                      ) -> AbstractGraphModel:
+    """
+    Trains a GATModel using the MVE loss.
+    
+    Specifically the model is pre-trained for half of the epochs using the normal MSE prediction loss 
+    and then for the second half of the epochs the variance loss is added to the training.
+    """
     
     graphs_train = [index_data_map[index]['metadata']['graph'] for index in train_indices]
     loader_train = DataLoader(data_list_from_graphs(graphs_train), batch_size=e.BATCH_SIZE, shuffle=True)
@@ -161,7 +172,6 @@ def train_model__gin(e: Experiment,
         mode=e.DATASET_TYPE,
         learning_rate=e.LEARNING_RATE,
         variance_units=e.VARIANCE_UNITS,
-        epoch_start=int(0.8 * e.EPOCHS),
     )
         
     # ~ mve training
@@ -189,10 +199,67 @@ def train_model__gin(e: Experiment,
         train_dataloaders=loader_train,
     )
         
-    e.log('model training done...')
+    e.log('model training done...')    
+    # very important: At the end of the training we need to put the model into evaluation mode!
     model.eval()
     
-    # very important: At the end of the training we need to put the model into evaluation mode!
+    return model
+
+
+@experiment.hook('train_model__gcn', default=False, replace=True)
+def train_model__gcn(e: Experiment,
+                     index_data_map: dict,
+                     train_indices: List[int],
+                     test_indices: List[int],
+                     **kwargs,
+                     ) -> AbstractGraphModel:
+    """
+    Trains a GCNModel using the MVE loss.
+    
+    Specifically the model is pre-trained for half of the epochs using the normal MSE prediction loss 
+    and then for the second half of the epochs the variance loss is added to the training.
+    """
+    
+    graphs_train = [index_data_map[index]['metadata']['graph'] for index in train_indices]
+    loader_train = DataLoader(data_list_from_graphs(graphs_train), batch_size=e.BATCH_SIZE, shuffle=True)
+        
+    model = GCNModel(
+        node_dim=e['node_dim'],
+        edge_dim=e['edge_dim'],
+        encoder_units=e.ENCODER_UNITS,
+        predictor_units=e.PREDICTOR_UNITS,
+        variance_units=e.VARIANCE_UNITS,
+        mode=e.DATASET_TYPE,
+        learning_rate=e.LEARNING_RATE,
+    )
+    
+    # ~ mve training
+    # When training a model for mean-variance estimation, we need to follow a slightly different 
+    # protocol. It is generally recommended to use a warm-up period where the model is only trained 
+    # with the prediction loss and only afterwards to add the variance loss to the training. 
+    e.log('starting warm-up training...')
+    trainer = pl.Trainer(max_epochs=e.EPOCHS // 2)
+    trainer.fit(
+        model,
+        train_dataloaders=loader_train,
+    )
+    
+    e.log('switching to mean-variance training...')
+    model.enable_variance_training()
+    trainer = pl.Trainer(
+        max_epochs=e.EPOCHS // 2,
+        # Some degree of gradient clipping is recommended for MVE training to increase the 
+        # stability / prevent the exploding gradients problem
+        gradient_clip_val=50.0, 
+        gradient_clip_algorithm='value'
+    )
+    
+    trainer.fit(
+        model,
+        train_dataloaders=loader_train,
+    )
+        
+    e.log('model training done...')
     model.eval()
     
     return model

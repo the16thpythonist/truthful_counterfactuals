@@ -43,7 +43,7 @@ from visual_graph_datasets.data import VisualGraphDatasetReader
 from truthful_counterfactuals.utils import EXPERIMENTS_PATH
 from truthful_counterfactuals.utils import np_array
 from truthful_counterfactuals.models import AbstractGraphModel, MockModel
-from truthful_counterfactuals.models import GINModel, GATModel
+from truthful_counterfactuals.models import GINModel, GATModel, GCNModel
 from truthful_counterfactuals.uncertainty import AbstractUncertainty, MockUncertainty
 from truthful_counterfactuals.data import data_list_from_graphs
 from truthful_counterfactuals.metrics import threshold_error_reduction
@@ -197,6 +197,38 @@ def train_model__gin(e: Experiment,
         mode=e.DATASET_TYPE,
         learning_rate=e.LEARNING_RATE,
         epoch_start=int(0.8 * e.EPOCHS),
+    )
+        
+    trainer = pl.Trainer(max_epochs=e.EPOCHS)
+    trainer.fit(
+        model,
+        train_dataloaders=loader_train,
+    )
+    
+    # very important: At the end of the training we need to put the model into evaluation mode!
+    model.eval()
+    
+    return model
+
+
+@experiment.hook('train_model__gcn', default=True, replace=False)
+def train_model__gcn(e: Experiment,
+                     index_data_map: dict,
+                     train_indices: List[int],
+                     test_indices: List[int],
+                     **kwargs,
+                     ) -> AbstractGraphModel:
+    
+    graphs_train = [index_data_map[index]['metadata']['graph'] for index in train_indices]
+    loader_train = DataLoader(data_list_from_graphs(graphs_train), batch_size=e.BATCH_SIZE, shuffle=True)
+
+    model = GCNModel(
+        node_dim=e['node_dim'],
+        edge_dim=e['edge_dim'],
+        encoder_units=e.ENCODER_UNITS,
+        predictor_units=e.PREDICTOR_UNITS,
+        mode=e.DATASET_TYPE,
+        learning_rate=e.LEARNING_RATE,
     )
         
     trainer = pl.Trainer(max_epochs=e.EPOCHS)
@@ -479,6 +511,18 @@ def evaluate_uncertainty(e: Experiment,
     )
     g.plot_joint(sns.histplot, bins=50)
     g = g.plot_marginals(sns.histplot, edgecolor=None, bins=20, alpha=0.8, kde=True)
+    
+    # Add faint kde plot in the background
+    sns.kdeplot(
+        data=df_filtered,
+        x='uncertainty',
+        y='error',
+        fill=True,
+        alpha=0.15,  # Adjust alpha for faintness
+        ax=g.ax_joint,  # Overlay on the joint plot
+        color='gray',
+    )
+    
     g.figure.suptitle(f'Uncertainty Error Correlation: {corr_value:.3f}\n')
     g.figure.subplots_adjust(top=0.85)
     e.commit_fig('uncertainty_error.pdf', g.figure)
@@ -500,6 +544,24 @@ def evaluate_uncertainty(e: Experiment,
     ax.set_ylabel('relative error reduction')
     ax.legend()
     e.commit_fig('threshold_error_reduction_mean.pdf', fig)
+    
+    # uncertainty threshold error reduction (median)
+    ths, rds = threshold_error_reduction(
+        df['uncertainty'].values, df['error'].values,
+        num_bins=50,
+        error_func=np.median,
+    )
+    auc_median_value = auc(ths, rds)
+    e[f'{key}/metrics/uer_auc_median'] = auc_median_value
+    e.log(f' * UER-AUC (median): {auc_median_value:.3f}')
+    
+    fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(e.FIG_SIZE, e.FIG_SIZE))
+    plot_threshold_error_reductions(ax, ths, rds, color='green')
+    ax.set_title(f'Threshold Error Reduction (median)')
+    ax.set_xlabel('relative uncertainty threshold')
+    ax.set_ylabel('relative error reduction')
+    ax.legend()
+    e.commit_fig('threshold_error_reduction_median.pdf', fig)
 
     # uncertainty threshold error reduction (max)
     ths, rds = threshold_error_reduction(

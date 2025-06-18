@@ -79,6 +79,11 @@ NUM_TRAIN: int = 50
 #       The type of the dataset. This can be either 'regression' or 'classification'.
 #       Currently only regression supported!
 DATASET_TYPE: str = 'regression'
+# :param TRAIN_NOISE:
+#       The amount of noise to be added to the training set. This is used to simulate a more
+#       realistic training scenario where the model has to learn to deal with noisy data.
+#       This is a value between 0 and 1, where 0 means no noise and 1 means maximum noise.
+TRAINING_NOISE: float = 1.5
 
 # == MODEL PARAMETERS ==
 
@@ -640,6 +645,17 @@ def experiment(e: Experiment):
     e['indices/train'] = indices_train
     e['indices/test'] = indices_test
     e['indices/val'] = indices_val
+    
+    if e.TRAINING_NOISE > 0:
+        
+        e.log(f'adding noise "{e.TRAINING_NOISE}" to the training set...')
+        for index in indices_train:
+            graph = index_data_map[index]['metadata']['graph']
+            graph['graph_labels'] += np.random.normal(
+                0, 
+                e.TRAINING_NOISE, 
+                size=graph['graph_labels'].shape
+            )
     
     # ~ starting the model training
     

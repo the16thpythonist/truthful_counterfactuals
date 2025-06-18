@@ -19,7 +19,7 @@ VISUAL_GRAPH_DATASET: str = os.path.join(EXPERIMENTS_PATH, 'assets', 'logp')
 
 EPOCHS: int = 50
 CALIBRATE_UNCERTAINTY: bool = True
-# TEST_INDICES_PATH: str = os.path.join(EXPERIMENTS_PATH, 'assets', 'logp_ood_struct.json')
+TEST_INDICES_PATH: str = os.path.join(EXPERIMENTS_PATH, 'assets', 'logp_ood_value.json')
 
 __DEBUG__ = True
 

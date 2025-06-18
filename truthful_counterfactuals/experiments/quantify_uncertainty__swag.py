@@ -6,7 +6,7 @@ from torch_geometric.data import Data
 from pycomex.functional.experiment import Experiment
 from pycomex.utils import folder_path, file_namespace
 
-from truthful_counterfactuals.models import AbstractGraphModel, GINModel, GATModel
+from truthful_counterfactuals.models import AbstractGraphModel, GINModel, GATModel, GCNModel
 from truthful_counterfactuals.data import data_list_from_graphs
 from truthful_counterfactuals.uncertainty import AbstractUncertainty
 from truthful_counterfactuals.uncertainty import SwagUncertainty
@@ -19,6 +19,11 @@ EPOCHS: int = 50
 CALIBRATE_UNCERTAINTY: bool = True
 #TEST_INDICES_PATH: str = os.path.join(EXPERIMENTS_PATH, 'assets', 'logp_ood_value.json')
 TEST_INDICES_PATH: str = None
+
+# :param MODEL_TYPE:
+#       The type of the model to be used for the experiment. This can be either 'GIN' or 'GAT'.
+#       The model type determines the architecture of the model that is used for the experiment.
+MODEL_TYPE: str = 'gcn'
 
 # == SWAG PARAMETERS ==
 
@@ -59,7 +64,7 @@ def train_model(e: Experiment,
             predictor_units=e.PREDICTOR_UNITS,
             mode=e.DATASET_TYPE,
             learning_rate=e.LEARNING_RATE,
-            epoch_start=int(0.8 * e.EPOCHS),
+            epoch_start=e.EPOCH_START,
         )
         
     elif e.MODEL_TYPE.lower() == 'gat':
@@ -67,6 +72,17 @@ def train_model(e: Experiment,
             node_dim=e['node_dim'],
             edge_dim=e['edge_dim'],
             num_heads=3,
+            encoder_units=e.ENCODER_UNITS,
+            predictor_units=e.PREDICTOR_UNITS,
+            mode=e.DATASET_TYPE,
+            learning_rate=e.LEARNING_RATE,
+            epoch_start=e.EPOCH_START,
+        )
+        
+    elif e.MODEL_TYPE.lower() == 'gcn':
+        model = GCNModel(
+            node_dim=e['node_dim'],
+            edge_dim=e['edge_dim'],
             encoder_units=e.ENCODER_UNITS,
             predictor_units=e.PREDICTOR_UNITS,
             mode=e.DATASET_TYPE,
