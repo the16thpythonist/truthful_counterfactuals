@@ -143,6 +143,11 @@ class AbstractGraphModel(pl.LightningModule):
     
     def forward_graph(self, graph: dict) -> dict:
         return self.forward_graphs([graph])[0]
+
+    def state_dict(self, *args, **kwargs) -> dict:
+        """Return a copy of the model state dictionary."""
+        state = super().state_dict(*args, **kwargs)
+        return {k: v.clone() for k, v in state.items()}
     
     @classmethod
     def load(cls, path: str) -> 'AbstractGraphModel':
